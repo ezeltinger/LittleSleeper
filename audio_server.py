@@ -1,4 +1,4 @@
-import pyaudio
+# import pyaudio
 import numpy as np
 import time
 import multiprocessing as mp
@@ -6,9 +6,10 @@ from multiprocessing.connection import Listener
 import ctypes
 from scipy import ndimage, interpolate
 from datetime import datetime
+import sounddevice as sd
 
 CHUNK_SIZE = 8192
-AUDIO_FORMAT = pyaudio.paInt16
+# AUDIO_FORMAT = pyaudio.paInt16
 SAMPLE_RATE = 16000
 BUFFER_HOURS = 12
 AUDIO_SERVER_ADDRESS = ('localhost', 6000)
@@ -24,37 +25,36 @@ def process_audio(shared_audio, shared_time, shared_pos, lock):
     :param lock:
     :return:
     """
-
+    duration = 5.5  # seconds
     # open default audio input stream
-    p = pyaudio.PyAudio()
-    stream = p.open(format=AUDIO_FORMAT, channels=1, rate=SAMPLE_RATE, input=True, frames_per_buffer=CHUNK_SIZE)
+    # p = pyaudio.PyAudio()
+    # stream = p.open(format=AUDIO_FORMAT, channels=1, rate=SAMPLE_RATE, input=True, frames_per_buffer=CHUNK_SIZE)
 
     while True:
         # grab audio and timestamp
-        audio = np.fromstring(stream.read(CHUNK_SIZE), np.int16)
+        # audio = np.fromstring(stream.read(CHUNK_SIZE), np.int16)
         current_time = time.time()
 
-        # acquire lock
-        lock.acquire()
+        def callback(indata, frames, time, status):
+            if status:
+                print(status)
+            # acquire lock
+            lock.acquire()
 
-        # record current time
-        shared_time[shared_pos.value] = current_time
+            # record current time
+            shared_time[shared_pos.value] = current_time
 
-        # record the maximum volume in this time slice
-        shared_audio[shared_pos.value] = np.abs(audio).max()
+            # record the maximum volume in this time slice
+            shared_audio[shared_pos.value] = np.abs(indata).max()
 
-        # increment counter
-        shared_pos.value = (shared_pos.value + 1) % len(shared_time)
+            # increment counter
+            shared_pos.value = (shared_pos.value + 1) % len(shared_time)
 
-        # release lock
-        lock.release()
+            # release lock
+            lock.release()
 
-    # I've included the following code for completion, but unless the above
-    #  loop is modified to include an interrupt it will never be executed
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
+        with sd.Stream(channels=1, dtype='int16', callback=callback):
+            sd.sleep(int(duration * 1000))
 
 def format_time_difference(time1, time2):
     time_diff = datetime.fromtimestamp(time2) - datetime.fromtimestamp(time1)
