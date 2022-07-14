@@ -1,4 +1,3 @@
-# import pyaudio
 import numpy as np
 import time
 import multiprocessing as mp
@@ -8,12 +7,14 @@ from scipy import ndimage, interpolate
 from datetime import datetime
 import sounddevice as sd
 
+
+print("Imports Finished")
 CHUNK_SIZE = 8192
-# AUDIO_FORMAT = pyaudio.paInt16
+AUDIO_FORMAT = 'int16'
 SAMPLE_RATE = 16000
 BUFFER_HOURS = 12
 AUDIO_SERVER_ADDRESS = ('localhost', 6000)
-
+sd.default.samplerate = SAMPLE_RATE
 
 def process_audio(shared_audio, shared_time, shared_pos, lock):
     """
@@ -25,36 +26,38 @@ def process_audio(shared_audio, shared_time, shared_pos, lock):
     :param lock:
     :return:
     """
-    duration = 5.5  # seconds
+    # duration = 5.5  # seconds
     # open default audio input stream
     # p = pyaudio.PyAudio()
     # stream = p.open(format=AUDIO_FORMAT, channels=1, rate=SAMPLE_RATE, input=True, frames_per_buffer=CHUNK_SIZE)
+    stream = sd.InputStream(samplerate=SAMPLE_RATE, device=1, channels=2, dtype=AUDIO_FORMAT)
+    stream.start()
 
     while True:
         # grab audio and timestamp
         # audio = np.fromstring(stream.read(CHUNK_SIZE), np.int16)
+        audio, overflowed = stream.read(CHUNK_SIZE)
         current_time = time.time()
 
-        def callback(indata, frames, time, status):
-            if status:
-                print(status)
-            # acquire lock
-            lock.acquire()
+        # acquire lock
+        lock.acquire()
 
-            # record current time
-            shared_time[shared_pos.value] = current_time
+        # record current time
+        shared_time[shared_pos.value] = current_time
+        print(f"{audio}")
+        # record the maximum volume in this time slice
+        shared_audio[shared_pos.value] = np.abs(audio).max()
+        print(f"Time: {shared_time[shared_pos.value]}, Volume: {shared_audio[shared_pos.value]}")
+        # increment counter
+        shared_pos.value = (shared_pos.value + 1) % len(shared_time)
 
-            # record the maximum volume in this time slice
-            shared_audio[shared_pos.value] = np.abs(indata).max()
+        # release lock
+        lock.release()
 
-            # increment counter
-            shared_pos.value = (shared_pos.value + 1) % len(shared_time)
-
-            # release lock
-            lock.release()
-
-        with sd.Stream(channels=1, dtype='int16', callback=callback):
-            sd.sleep(int(duration * 1000))
+    # I've included the following code for completion, but unless the above
+    #  loop is modified to include an interrupt it will never be executed
+    stream.stop()
+    p.terminate()
 
 def format_time_difference(time1, time2):
     time_diff = datetime.fromtimestamp(time2) - datetime.fromtimestamp(time1)
