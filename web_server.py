@@ -10,6 +10,7 @@ import tornado.gen
 from multiprocessing.connection import Client
 
 AUDIO_SERVER_ADDRESS = ('localhost', 6000)
+# Change this to the machines ip address
 WEB_SERVER_ADDRESS = ('0.0.0.0', 8090)
 
 # The highest (practical) volume for the microphone, which is used to normalize the signal
@@ -45,6 +46,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
 def broadcast_mic_data():
     # get the latest data from the audio server
+    print("Getting latest data from audio server")
     parameters = {"upper_limit": UPPER_LIMIT,
                   "noise_threshold": NOISE_THRESHOLD,
                   "min_quiet_time": MIN_QUIET_TIME,
@@ -76,11 +78,11 @@ def main():
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(WEB_SERVER_ADDRESS[1], WEB_SERVER_ADDRESS[0])
     print(f"Listening on port: {WEB_SERVER_ADDRESS[1]}")
- 
-    main_loop = tornado.ioloop.IOLoop.instance()
-    scheduler = tornado.ioloop.PeriodicCallback(broadcast_mic_data, 1000, io_loop=main_loop)
+
+    main_loop = tornado.ioloop.IOLoop.current()
+    scheduler = tornado.ioloop.PeriodicCallback(broadcast_mic_data, 1000)
     scheduler.start()
     main_loop.start()
- 
+
 if __name__ == "__main__":
     main()
