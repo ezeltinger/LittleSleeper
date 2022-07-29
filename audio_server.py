@@ -44,7 +44,7 @@ def process_audio(shared_audio, shared_time, shared_pos, lock):
 
         # record current time
         shared_time[shared_pos.value] = current_time
-        print(f"{audio}")
+
         # record the maximum volume in this time slice
         shared_audio[shared_pos.value] = np.abs(audio).max()
         print(f"Time: {shared_time[shared_pos.value]}, Volume: {shared_audio[shared_pos.value]}")
@@ -199,6 +199,11 @@ def init_server():
     p2 = mp.Process(target=process_requests, args=(shared_audio, shared_time, shared_pos, lock))
     p1.start()
     p2.start()
+    time.sleep(3)
+    with open('pid.log', 'a') as f:
+        f.write(f"{p1.pid}\n")
+        f.write(f"{p2.pid}\n")
+
 
 
 if __name__ == '__main__':
